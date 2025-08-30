@@ -5,7 +5,7 @@ import logging
 
 from utils.spark_handler import SparkHandler
 from utils.extractor import DataExtractor
-
+from utils.spark_cleaner import SparkCleanData
 load_dotenv()
 
 
@@ -29,6 +29,8 @@ def api_extraction(data_extractor: DataExtractor, api_url: str, params: dict, in
     
 if __name__ == "__main__":
     
+    spark_cleaner = SparkCleanData()
+    
     API_KEY = str(os.getenv('API_KEY'))
     DOLAR_URL = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?%40dataInicial='01-02-2025'&%40dataFinalCotacao='08-29-2025'&$format=json"
     AAPL_URL = "https://api.twelvedata.com/time_series"
@@ -36,3 +38,17 @@ if __name__ == "__main__":
     data_extractor = config(API_KEY)
     dolar_df = api_extraction(data_extractor, api_url= DOLAR_URL, params={}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/dolar")
     apple_df = api_extraction(data_extractor, AAPL_URL, params={"symbol": "AAPL", "interval": "1day", "apikey": API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/apple")
+    # amazon_df = api_extraction(data_extractor, AAPL_URL, params={"symbol": "AMZN", "interval": "1day", "apikey": API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/amazon")
+    # bitcoin_df = api_extraction(data_extractor, AAPL_URL, params={"symbol": "BTC/USD", "interval": "1day", "apikey": API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/bitcoin")
+
+    
+    dolar_df = spark_cleaner.explode_json(dolar_df, ['value'])
+    apple_df = spark_cleaner.explode_json(apple_df, ['values'])
+    # amazon_df = spark_cleaner.explode_json(amazon_df, ['values'])
+    
+    dolar_df = spark_cleaner.select_exploded_columns(dolar_df, select_columns=["value.cotacaoCompra", "value.cotacaoVenda", "value.dataHoraCotacao"])
+    apple_df = spark_cleaner.select_exploded_columns(apple_df, select_columns=["meta.currency", "meta.exchange", "meta.exchange_timezone", "meta.interval", "meta.symbol", "meta.type", "status", "values.close", "values.datetime", "values.high", "values.low", "values.open", "values.volume"])
+    
+    spark_cleaner.save_bronze(apple_df, "/home/arthur/Projetos/data_batch_etl/data/bronze/apple")
+    spark_cleaner.save_bronze(dolar_df, "/home/arthur/Projetos/data_batch_etl/data/bronze/dolar")
+    
