@@ -1,4 +1,6 @@
 import logging
+import os 
+
 import boto3
 
 
@@ -24,14 +26,18 @@ class S3Handler():
         except Exception as e:
             logging.error(f"Erro ao fazer conexão com s3: {str(e)}")
     
-    def s3_upload_files(self, s3, file_path: str, bucket_name: str, s3_key):
+    def s3_upload_files(self, s3, folder_path: str, bucket_name: str, s3_prefix):
         try:
-            with open(file_path, "rb") as data:
-                s3.put_object(
-                    Bucket=bucket_name,
-                    Key=s3_key,
-                    Body=data
-                )
-            logging.info("Sucesso ao carregar dados para o s3")
+            parquet_files = [f for f in os.listdir(folder_path) if f.endswith(".parquet")]
+            for file in parquet_files:
+                local_file_path = os.path.join(folder_path, file)
+                s3_key = f"{s3_prefix}/{file}"
+                with open(local_file_path, "rb") as data:
+                    s3.put_object(
+                        Bucket=bucket_name,
+                        Key=s3_key,
+                        Body=data
+                    )
+                logging.info("Sucesso ao carregar dados para o s3")
         except Exception as e:
             logging.error(f"Erro ao carregar dados para o s3: {str(e)}")
