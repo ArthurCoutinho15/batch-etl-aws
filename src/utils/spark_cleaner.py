@@ -23,4 +23,4 @@ class SparkCleanData():
     
     @staticmethod
     def save_bronze(spark_dataframe: DataFrame, ingestion_path = str):
-        spark_dataframe.write.mode("overwrite").csv(ingestion_path)
+        spark_dataframe.write.mode("overwrite").parquet(ingestion_path)
