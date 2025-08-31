@@ -1,18 +1,17 @@
 import os 
-from dotenv import load_dotenv
-
 import logging
+
+from dotenv import load_dotenv
+import pandas as pd
 
 import utils.configs as configs
 from utils.spark_handler import SparkHandler
 from utils.extractor import DataExtractor
 from utils.spark_cleaner import SparkCleanData
 from utils.s3_handler import S3Handler
-
+from utils.data_ingestion import RdsIngestion
 
 load_dotenv()
-
-
 
 def config(api_key):
     spark = SparkHandler(app_name="teste").spark_session_instance()
@@ -21,7 +20,7 @@ def config(api_key):
     return data_extractor
 
 def s3_config():
-    s3_handler = S3Handler(aws_access_key_id= configs.AWS_KEY, aws_secret_access_key=configs.AWS_PSWD, region_name=configs.AWS_REGION)
+    s3_handler = S3Handler()
     return s3_handler
 
 def get_s3_client(s3_handler: S3Handler):
@@ -45,11 +44,13 @@ def api_extraction(data_extractor: DataExtractor, api_url: str, params: dict, in
 if __name__ == "__main__":
     
     spark_cleaner = SparkCleanData()
+    
+    rds_handler = RdsIngestion()
+    
+    rds_engine = rds_handler.create_engine()
  
     s3_handler = s3_config()
     s3_client = get_s3_client(s3_handler)
-    
-    
     
     data_extractor = config(configs.API_KEY)
     
@@ -74,4 +75,12 @@ if __name__ == "__main__":
     for path, dataframe in load_dict.items():
         spark_cleaner.save_bronze(dataframe, ingestion_path=f"/home/arthur/Projetos/data_batch_etl/data/bronze/{path}")
         s3_handler.s3_upload_files(s3_client, folder_path=f"/home/arthur/Projetos/data_batch_etl/data/bronze/{path}", bucket_name=configs.AWS_BUCKET, s3_prefix=f"raw-data/{path}")
+        
+    s3_path = "s3://arthur-datalake/raw-data/apple/"
     
+    df_apple = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/apple/")
+    df_dolar = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/dolar/")
+    df_amazon = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/amazon/")
+    df_bitcoin = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/bitcoin/")
+    
+    rds_handler.load_data(df_apple, table_name="df_dolar", engine=rds_engine)        
