@@ -22,5 +22,17 @@ class SparkCleanData():
         return spark_dataframe
     
     @staticmethod
+    def union_dfs(spark_dataframe_list: List[DataFrame]) -> DataFrame:
+        if not spark_dataframe_list:
+            return None
+        
+        spark_dataframe = spark_dataframe_list[0]
+        for df in spark_dataframe_list[1:]:
+            spark_dataframe = spark_dataframe.unionByName(df, allowMissingColumns=True)
+    
+        return spark_dataframe
+    
+    
+    @staticmethod
     def save_bronze(spark_dataframe: DataFrame, ingestion_path = str):
         spark_dataframe.write.mode("overwrite").parquet(ingestion_path)

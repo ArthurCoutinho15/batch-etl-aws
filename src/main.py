@@ -1,8 +1,10 @@
 import os 
 import logging
+from typing import List
 
 from dotenv import load_dotenv
 import pandas as pd
+from pyspark.sql import DataFrame
 
 import utils.configs as configs
 from utils.spark_handler import SparkHandler
@@ -12,6 +14,11 @@ from utils.s3_handler import S3Handler
 from utils.data_ingestion import RdsIngestion
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 def config(api_key):
     spark = SparkHandler(app_name="teste").spark_session_instance()
@@ -53,34 +60,42 @@ if __name__ == "__main__":
     s3_client = get_s3_client(s3_handler)
     
     data_extractor = config(configs.API_KEY)
+
     
     dolar_df = api_extraction(data_extractor, api_url= configs.DOLAR_URL, params={}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/dolar")
+    
+    
     apple_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "AAPL", "interval": "1day", "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/apple")
     amazon_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "AMZN", "interval": "1day", "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/amazon")
     bitcoin_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "BTC/USD", "interval": "1day", "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/bitcoin")
-
+    ethereum_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "BTC/USD", "interval": "1day", "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/bitcoin")
+    
+    stocks: List[DataFrame] = [apple_df, amazon_df]
+    crypto: List[DataFrame] = [bitcoin_df, ethereum_df]
+    
+    stocks_df = spark_cleaner.union_dfs(stocks)
+    crypto_df = spark_cleaner.union_dfs(crypto)
+    
     
     dolar_df = spark_cleaner.explode_json(dolar_df, ['value'])
-    apple_df = spark_cleaner.explode_json(apple_df, ['values'])
-    amazon_df = spark_cleaner.explode_json(amazon_df, ['values'])
-    bitcoin_df = spark_cleaner.explode_json(bitcoin_df, ['values'])
+    stocks_df = spark_cleaner.explode_json(stocks_df, ['values'])
+    crypto_df = spark_cleaner.explode_json(crypto_df, ['values'])
     
     dolar_df = spark_cleaner.select_exploded_columns(dolar_df, select_columns=["value.cotacaoCompra", "value.cotacaoVenda", "value.dataHoraCotacao"])
-    apple_df = spark_cleaner.select_exploded_columns(apple_df, select_columns=["meta.currency", "meta.exchange", "meta.exchange_timezone", "meta.interval", "meta.symbol", "meta.type", "status", "values.close", "values.datetime", "values.high", "values.low", "values.open", "values.volume"])
-    amazon_df = spark_cleaner.select_exploded_columns(amazon_df, select_columns=["meta.currency", "meta.exchange", "meta.exchange_timezone", "meta.interval", "meta.symbol", "meta.type", "status", "values.close", "values.datetime", "values.high", "values.low", "values.open", "values.volume"])
-    bitcoin_df = spark_cleaner.select_exploded_columns(bitcoin_df, select_columns=["meta.currency_base", "meta.currency_quote", "meta.exchange", "meta.interval", "meta.symbol", "meta.type", "status", "values.close", "values.datetime", "values.high", "values.low", "values.open"])
+    stocks_df = spark_cleaner.select_exploded_columns(stocks_df, select_columns=["meta.currency", "meta.exchange", "meta.exchange_timezone", "meta.interval", "meta.symbol", "meta.type", "status", "values.close", "values.datetime", "values.high", "values.low", "values.open", "values.volume"])
+    crypto_df = spark_cleaner.select_exploded_columns(crypto_df, select_columns=["meta.currency_base", "meta.currency_quote", "meta.exchange", "meta.interval", "meta.symbol", "meta.type", "status", "values.close", "values.datetime", "values.high", "values.low", "values.open"])
     
-    load_dict = {"apple": apple_df, "dolar": dolar_df, "amazon": amazon_df, "bitcoin": bitcoin_df}
+    load_dict = {"stocks": stocks_df, "dolar": dolar_df, "crypto": crypto_df}
     
     for path, dataframe in load_dict.items():
         spark_cleaner.save_bronze(dataframe, ingestion_path=f"/home/arthur/Projetos/data_batch_etl/data/bronze/{path}")
         s3_handler.s3_upload_files(s3_client, folder_path=f"/home/arthur/Projetos/data_batch_etl/data/bronze/{path}", bucket_name=configs.AWS_BUCKET, s3_prefix=f"raw-data/{path}")
         
-    s3_path = "s3://arthur-datalake/raw-data/apple/"
     
-    df_apple = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/apple/")
+    df_stocks = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/stocks/")
     df_dolar = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/dolar/")
-    df_amazon = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/amazon/")
-    df_bitcoin = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/bitcoin/")
+    df_crypto = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/crypto/")
     
-    rds_handler.load_data(df_apple, table_name="df_dolar", engine=rds_engine)        
+    rds_handler.load_data(df_dolar, table_name="bronze_dolar", engine=rds_engine)        
+    rds_handler.load_data(df_stocks, table_name="bronze_stocks", engine=rds_engine)        
+    rds_handler.load_data(df_crypto, table_name="bronze_crypto", engine=rds_engine)        
