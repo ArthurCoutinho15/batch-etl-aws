@@ -1,0 +1,10 @@
+version: 2 
+
+sources:
+  - name: finance_db
+    database: finance_db
+    schema: finance_db
+    tables:
+      - name: bronze_crypto
+      - name: bronze_dolar
+      - name: bronze_stocks
