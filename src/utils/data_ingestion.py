@@ -17,7 +17,7 @@ class RdsIngestion():
         self._db_name = str(os.getenv("RDS_DB_NAME"))
         
     
-    def create_engine(self):
+    def create_engine_mysql(self):
         engine = create_engine(
             f"mysql+pymysql://{self._rds_user}:{self._rds_psw}@{self._host}:{self._port}/{self._db_name}"
         )

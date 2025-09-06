@@ -54,7 +54,7 @@ if __name__ == "__main__":
     
     rds_handler = RdsIngestion()
     
-    rds_engine = rds_handler.create_engine()
+    rds_engine = rds_handler.create_engine_mysql()
  
     s3_handler = s3_config()
     s3_client = get_s3_client(s3_handler)
@@ -65,10 +65,10 @@ if __name__ == "__main__":
     dolar_df = api_extraction(data_extractor, api_url= configs.DOLAR_URL, params={}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/dolar")
     
     
-    apple_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "AAPL", "interval": "1day", "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/apple")
-    amazon_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "AMZN", "interval": "1day", "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/amazon")
-    bitcoin_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "BTC/USD", "interval": "1day", "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/bitcoin")
-    ethereum_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "BTC/USD", "interval": "1day", "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/bitcoin")
+    apple_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "AAPL", "interval": "1day", "start_date": "2024-01-02", "end_date": "2025-08-29", "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/apple")
+    amazon_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "AMZN", "interval": "1day", "start_date": "2024-01-02", "end_date": "2025-08-29",  "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/amazon")
+    bitcoin_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "BTC/USD", "interval": "1day", "start_date": "2024-01-02", "end_date": "2025-08-29", "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/bitcoin")
+    ethereum_df = api_extraction(data_extractor, configs.AAPL_URL, params={"symbol": "ETH/USD", "interval": "1day", "start_date": "2024-01-02", "end_date": "2025-08-29", "apikey": configs.API_KEY}, ingestion_path="/home/arthur/Projetos/data_batch_etl/data/bitcoin")
     
     stocks: List[DataFrame] = [apple_df, amazon_df]
     crypto: List[DataFrame] = [bitcoin_df, ethereum_df]
@@ -82,8 +82,16 @@ if __name__ == "__main__":
     crypto_df = spark_cleaner.explode_json(crypto_df, ['values'])
     
     dolar_df = spark_cleaner.select_exploded_columns(dolar_df, select_columns=["value.cotacaoCompra", "value.cotacaoVenda", "value.dataHoraCotacao"])
-    stocks_df = spark_cleaner.select_exploded_columns(stocks_df, select_columns=["meta.currency", "meta.exchange", "meta.exchange_timezone", "meta.interval", "meta.symbol", "meta.type", "status", "values.close", "values.datetime", "values.high", "values.low", "values.open", "values.volume"])
-    crypto_df = spark_cleaner.select_exploded_columns(crypto_df, select_columns=["meta.currency_base", "meta.currency_quote", "meta.exchange", "meta.interval", "meta.symbol", "meta.type", "status", "values.close", "values.datetime", "values.high", "values.low", "values.open"])
+    
+    stocks_df = spark_cleaner.select_exploded_columns(stocks_df, select_columns=["meta.currency", "meta.exchange", "meta.exchange_timezone", 
+                                                                                 "meta.interval", "meta.symbol", "meta.type", "status", 
+                                                                                 "values.close", "values.datetime", "values.high", 
+                                                                                 "values.low", "values.open", "values.volume"])
+    
+    crypto_df = spark_cleaner.select_exploded_columns(crypto_df, select_columns=["meta.currency_base", "meta.currency_quote", "meta.exchange", 
+                                                                                 "meta.interval", "meta.symbol", "meta.type",
+                                                                                 "status", "values.close", "values.datetime",
+                                                                                 "values.high", "values.low", "values.open"])
     
     load_dict = {"stocks": stocks_df, "dolar": dolar_df, "crypto": crypto_df}
     
@@ -96,6 +104,9 @@ if __name__ == "__main__":
     df_dolar = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/dolar/")
     df_crypto = s3_handler.s3_get_data(s3_path="s3://arthur-datalake/raw-data/crypto/")
     
+    df_dados = pd.read_csv('/home/arthur/Projetos/data_batch_etl/posicoes_clientes_fake.csv')
+    
     rds_handler.load_data(df_dolar, table_name="bronze_dolar", engine=rds_engine)        
     rds_handler.load_data(df_stocks, table_name="bronze_stocks", engine=rds_engine)        
     rds_handler.load_data(df_crypto, table_name="bronze_crypto", engine=rds_engine)        
+    # rds_handler.load_data(df_dados, table_name="bronze_posicoes_cliente", engine=rds_engine)        
