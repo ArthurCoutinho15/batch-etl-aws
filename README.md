@@ -1,0 +1,1 @@
+<h1>export AIRFLOW_HOME=~/Projetos/data_batch_etl/airflow</h1>
